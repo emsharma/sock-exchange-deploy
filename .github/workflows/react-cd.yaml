@@ -1,11 +1,11 @@
-name: Update and Deploy AWS Lambda Function
+name: Deploy Vite React App to AWS S3
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -18,13 +18,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd aws
-          npm install --cpu=x64 --os=linux sharp --include=optional
+          cd react
+          npm install
 
-      - name: Zip Lambda function
+      - name: Configure .env file
         run: |
-          cd aws
-          zip -r function.zip .  # Zips the entire aws directory
+          cd react
+          echo "VITE_SOCKS_API_URL = https://ecs.the-sock-exchange.com/api/socks" > .env
+          echo "VITE_ENVIRONMENT = production" >> .env
+
+      - name: Build Vite React app
+        run: |
+          cd react
+          npm run build
 
       - name: Set up AWS CLI
         uses: aws-actions/configure-aws-credentials@v4
@@ -33,10 +39,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: us-west-2
 
-      - name: Upload zip file to S3
+      - name: Sync build directory to S3
         run: |
-          aws s3 cp ./aws/function.zip s3://the-sock-exchange/resize.zip
-
-      - name: Update Lambda function
-        run: |
-          aws lambda update-function-code --function-name resize --s3-bucket the-sock-exchange --s3-key resize.zip
+          aws s3 sync ./react/dist s3://the-sock-exchange-react --delete
